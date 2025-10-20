@@ -1,3 +1,5 @@
+from bafpipe import *
+
 # BafPipe
 Automated deconvolution of mass spectra datasets using [UniDec](https://github.com/michaelmarty/UniDec).
 
