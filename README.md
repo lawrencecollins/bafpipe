@@ -1,5 +1,3 @@
-from bafpipe import *
-
 # BafPipe
 Automated deconvolution of mass spectra datasets using [UniDec](https://github.com/michaelmarty/UniDec).
 
@@ -57,6 +55,10 @@ Make sure var_ids=True ```load_input_file(var_ids = True)```
 
 ### Running the code
 ```
+
+from bafpipe.meta_processing import *
+from bafpipe import ms_plotter_tools as msp
+
 path = r"C:\users\input_file.xlsx
 
 eng = Meta2()
