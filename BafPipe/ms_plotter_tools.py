@@ -8,7 +8,7 @@ import matplotlib
 import re
 import seaborn as sns
 
-matplotlib.rcParams['font.family'] = 'Arial'
+matplotlib.rcParams['font.family'] = 'Franklin Gothic Book'
 matplotlib.rcParams['pdf.fonttype'] = 42
 matplotlib.rcParams['ps.fonttype'] = 42
 
@@ -92,7 +92,7 @@ def _spectrum_plotter(x,y, title = None, axs = None, fig = None,
     axs.set_yticks([])
     axs.set_xlim(window[0], window[1])
     axs.grid(False)
-    axs.set_xlabel(xlabel, weight = "bold")
+    axs.set_xlabel(xlabel)
 
 
 
