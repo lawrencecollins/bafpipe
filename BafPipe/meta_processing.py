@@ -1,4 +1,4 @@
-from deconvolawrence.baf2sql2unidec import *
+from bafpipe.baf2sql2unidec import *
 import matplotlib.pyplot as plt
 import os
 import unidec
@@ -7,7 +7,7 @@ from unidec import tools as ud
 import pandas as pd
 import zipfile
 
-from deconvolawrence import ms_plotter_tools as msp
+from bafpipe import ms_plotter_tools as msp
 
 # match expected masses
 def match(pks, masslist, names, tolerance):
