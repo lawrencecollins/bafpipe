@@ -1,4 +1,4 @@
-from deconvolawrence.baf2sql2unidec import *
+from bafpipe.baf2sql2unidec import *
 import matplotlib.pyplot as plt
 import os
 import unidec
@@ -6,41 +6,10 @@ from unidec.metaunidec.mudeng import MetaUniDec
 from unidec import tools as ud
 import pandas as pd
 import zipfile
-
-from deconvolawrence import ms_plotter_tools as msp
-
-# match expected masses
-def match(pks, masslist, names, tolerance):
-    matches = []
-    errors = []
-    peaks = []
-    nameslist = []
+from scipy.signal import find_peaks
+from bafpipe import ms_plotter_tools as msp
 
 
-    for p in pks:
-
-        target = p.mass
-    #     print(target)
-        nearpt = ud.nearestunsorted(masslist, target)
-
-        match = masslist[nearpt]
-        error = target-match
-        if np.abs(error) < tolerance:
-            name = names[nearpt]
-            p.error = error
-        else:
-            name = ""
-        p.label = name
-        p.match = match
-        p.matcherror = error
-
-        matches.append(match)
-        errors.append(error)
-        peaks.append(target)
-        nameslist.append(name)
-
-    matchlist = [peaks, matches, errors, nameslist]
-    return matchlist
 
 def unzip_from_dir(directory):
     """Unzips zip folders in dir and deletes zip"""
@@ -66,9 +35,7 @@ def df_partial_str_merge(df1, df2, on):
     df2=df2.merge(df1.drop('Name', axis=1), left_on='Name', right_on=merge_df, how='outer')
     return df2
 
-
-
-class Meta2():
+class BafPipe():
     def __init__(self):
         self.spectra = []
         self.eng = MetaUniDec()
@@ -327,6 +294,42 @@ class Meta2():
         # self.match_spectra(masslist, names, self.tolerance, background=background_threshold)
         # self.export_data()
 
+    def generate_peaks(self, spectrum, threshold = 0, tolerance = 10):
+        """generates 2D x, y array of found peaks for a 2D x, y array"""
+
+        x,y = spectrum[:,0], spectrum[:,1]
+        peaks, _ = find_peaks(y, height = threshold, distance = tolerance)
+        peaksx = [x[p] for p in peaksi]
+        return np.array([np.array(peaksx), np.array(peaks)])
+    
+    def get_spectra_peaks(self, spectra = None, threshold = True, tolerance = 10):
+        """"""
+        if spectra == None: 
+            spectra = self.eng.data.spectra
+
+        if threshold:
+            threshold = self.background_threshold(s)
+        
+        for s in spectra:
+            if threshold:
+                try:
+                    threshold = self.background_threshold(s)
+                except Exception as error:
+                    print(error) 
+            else:
+                threshold = 0
+
+            try:
+                peaks = self.generate_peaks(s, threshold, tolerance)
+                s.peaks2 = peaks
+            
+            except Exception as error:
+                print("{} Peak picking error".format(s.name), error)
+
+            
+
+
+
 
     def background_threshold(self, spectrum, binsize = 10):
 
@@ -353,7 +356,7 @@ class Meta2():
                 except Exception as error:
                     print("No threshold", error)
 
-    def match(self,pks, masslist, names, tolerance, background_threshold = 0 ):
+    def match(self,pks, masslist, names, tolerance):
         """matches peaks (y axis) to corresponding mass (x axis)
 
         Args:
@@ -370,9 +373,7 @@ class Meta2():
         peaks = []
         nameslist = []
 
-
         for p in pks:
-
             target = p.mass
         #     print(target)
             nearpt = ud.nearestunsorted(masslist, target)
@@ -426,8 +427,6 @@ class Meta2():
         grouped = {}
         for n, d in df2.groupby(groupby):
             grouped[n] = [s for s in self.eng.data.spectra if s.name in list(d.Name_y)]
-
-
 
         return grouped
 
@@ -523,5 +522,10 @@ class Meta2():
 
 
 
+if name == "__main__":
 
-
+    # run test 
+    input_file = r"c:\Users\chmlco\OneDrive - University of Leeds\RESEARCH\BafPipe test\Input file\BafPipe test.xlsx"
+    eng = BafPipe()
+    eng.load_input_file(input_file, unzip=False, clearhdf5=True, var_ids=True)
+    eng.on_unidec()

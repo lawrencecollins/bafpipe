@@ -4,9 +4,9 @@ with open("README.md", "r") as fh:
     long_description = fh.read()
 
 setuptools.setup(
-    name="BafPipe",
+    name="bafpipe",
 
-    version="0.3.4",
+    version="0.3.5",
 
     author="Lawrence Collins",
     author_email="chmlco@leeds.ac.uk",

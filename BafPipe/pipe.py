@@ -18,7 +18,7 @@ def main():
     except Exception as e:
         print(f"An error occurred: {e}")
 
-    eng = Meta2() # load engine
+    eng = BafPipe() # load engine
     eng.load_input_file(path, unzip=False, clearhdf5=True, var_ids=True) # load input file and run deconvolution
     eng.on_unidec() # run deconvolution
     

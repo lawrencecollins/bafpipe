@@ -3,7 +3,7 @@ import numpy as np
 from ctypes import *
 import sys
 import os
-from deconvolawrence import baf2sql
+from bafpipe import baf2sql
 import matplotlib.pyplot as plt
 
 
