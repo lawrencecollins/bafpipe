@@ -529,3 +529,4 @@ if name == "__main__":
     eng = BafPipe()
     eng.load_input_file(input_file, unzip=False, clearhdf5=True, var_ids=True)
     eng.on_unidec()
+    
