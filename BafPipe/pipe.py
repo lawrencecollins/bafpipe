@@ -6,7 +6,7 @@ def main():
         print("Usage: python file.py <excel_file>")
         sys.exit(1)
 
-    path = sys.argv[1]
+    path = sys.argv[1]cr
 
     # load the Excel input file
     try:
@@ -19,9 +19,16 @@ def main():
         print(f"An error occurred: {e}")
 
     eng = BafPipe() # load engine
-    eng.load_input_file(path, unzip=False, clearhdf5=True, var_ids=True) # load input file and run deconvolution
-    eng.on_unidec() # run deconvolution
-    
+
+    try: 
+        eng.load_input_file(path, unzip=False, clearhdf5=True, var_ids=True) # load input file and run deconvolution
+    except Exception as e:
+        print(f"An error occurred: {e}")
+
+    try:
+        eng.on_unidec() # run deconvolution
+    except Exception as e:
+        print(f"An error occurred: {e}")
 
 if __name__ == "__main__":
     main()

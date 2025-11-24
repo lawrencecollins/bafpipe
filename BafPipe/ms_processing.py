@@ -9,8 +9,6 @@ import zipfile
 from scipy.signal import find_peaks
 from bafpipe import ms_plotter_tools as msp
 
-
-
 def unzip_from_dir(directory):
     """Unzips zip folders in dir and deletes zip"""
     zip_files = [x for x in os.listdir(directory) if x[-4:] == ".zip"]
@@ -283,8 +281,8 @@ class BafPipe():
 
         if self.species is not None and match:
             try:
-                masslist = list(self.species['Mass'])
-                names = list(self.species['Species'])
+                masslist = np.array(self.species['Mass'])
+                names = np.array(self.species['Species'])
                 self.match_spectra(masslist, names, self.tolerance, background=background_threshold)
                 self.export_data()
             except Exception as e:
@@ -299,18 +297,19 @@ class BafPipe():
 
         x,y = spectrum[:,0], spectrum[:,1]
         peaks, _ = find_peaks(y, height = threshold, distance = tolerance)
-        peaksx = [x[p] for p in peaksi]
-        return np.array([np.array(peaksx), np.array(peaks)])
+        peaksx = [x[p] for p in peaks]
+        return np.array([np.array(peaksx), np.array(peaks)]).T
     
     def get_spectra_peaks(self, spectra = None, threshold = True, tolerance = 10):
         """"""
         if spectra == None: 
             spectra = self.eng.data.spectra
-
-        if threshold:
-            threshold = self.background_threshold(s)
         
         for s in spectra:
+            
+            if threshold:
+                threshold = self.background_threshold(s)
+            
             if threshold:
                 try:
                     threshold = self.background_threshold(s)
@@ -320,7 +319,7 @@ class BafPipe():
                 threshold = 0
 
             try:
-                peaks = self.generate_peaks(s, threshold, tolerance)
+                peaks = self.generate_peaks(s.massdat, threshold, tolerance)
                 s.peaks2 = peaks
             
             except Exception as error:
@@ -356,8 +355,45 @@ class BafPipe():
                 except Exception as error:
                     print("No threshold", error)
 
+    def match_array(self, peaks_array, masslist, names, window):
+        """matches 2D peaks (y axis) to corresponding mass (x axis).
+        Make sure masslist and names are np.array()"""
+        
+        data_masses = peaks_array[:, 0]
+        
+        
+        diff_matrix = np.abs(data_masses[:, np.newaxis] - masslist[np.newaxis, :])
+        diff_matrix[diff_matrix > window] = np.nan
+        min_peak_indices = np.nanargmin(diff_matrix, axis=0)
+        min_diffs = diff_matrix[min_peak_indices, np.arange(len(masslist))]
+
+        quantified_matches = {}
+
+        for i, name in enumerate(names):
+            # Check if the theoretical mass had a match within the window
+            if not np.isnan(min_diffs[i]):
+                theoretical_mass = masslist[i]
+                peak_index = min_peak_indices[i]
+                
+                # Look up the matched mass and intensity from the original 2D array
+                matched_peak_mass = peaks_array[peak_index, 0]
+                matched_intensity = peaks_array[peak_index, 1]
+                quantified_matches[name] = (
+                    theoretical_mass,
+                    matched_peak_mass,
+                    min_diffs[i],
+                    matched_intensity # Added the intensity value
+                )
+        matched = {k: v for k, v in quantified_matches.items() if not np.isnan(v[2])}
+
+        return matched
+    
+    def match_spectra_arrays(self, spectra = None, masslist = None, names = None, window = None):
+
+        pass
+
     def match(self,pks, masslist, names, tolerance):
-        """matches peaks (y axis) to corresponding mass (x axis)
+        """matches peaks (y axis) to corresponding mass (x axis) and updates peaks object
 
         Args:
             pks (_type_): _description_
@@ -410,8 +446,8 @@ class BafPipe():
                 s.background_threshold = 0
 
         for s in self.eng.data.spectra:
-            self.match(s.pks.peaks, masslist, names, tolerance,
-                        background_threshold = s.background_threshold)
+            self.match(s.pks.peaks, masslist, names, tolerance)
+                        # background_threshold = s.background_threshold)
 
 
 
@@ -522,7 +558,7 @@ class BafPipe():
 
 
 
-if name == "__main__":
+if __name__ == "__main__":
 
     # run test 
     input_file = r"c:\Users\chmlco\OneDrive - University of Leeds\RESEARCH\BafPipe test\Input file\BafPipe test.xlsx"

@@ -8,7 +8,7 @@ import numpy as np
 import os
 from ctypes import *
 
-dir = os.path.dirname(sys.modules["deconvolawrence"].__file__)
+dir = os.path.dirname(sys.modules["bafpipe"].__file__)
 path = os.path.join(dir, "baf2sql_c.dll")
 
 
