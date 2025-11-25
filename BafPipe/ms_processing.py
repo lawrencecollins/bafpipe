@@ -79,9 +79,9 @@ class BafPipe():
             config_table = filter_df(self.params, 'Config', 'Parameter')
             config_table.loc[:, 'Parameter'] = config_table.loc[:, 'Parameter'].str.replace("Config ", "")
         for i, row in config_table.iterrows():
-            print(row[0], row[1])
-            if row[1] is not np.nan:
-                setattr(self.eng.config, row[0], float(row[1]))
+            print(row.iloc[0], row.iloc[1])
+            if row.iloc[1] is not np.nan:
+                setattr(self.eng.config, row.iloc[0], float(row.iloc[1]))
                 # print(getattr(self.eng.config, row[0]))
 
 
@@ -116,9 +116,13 @@ class BafPipe():
         try:
             self.species = self.species.merge(self.colors_df, on='Species', how='outer')
             self.species = self.species[['Species', 'Mass', 'Color']].dropna(subset=['Mass'])
+             
         except Exception as e:
             print(e)
+        if 'Color' not in df.columns:
+            df['Color'] = np.nan
 
+        df['Color'] = df['Color'].fillna('black')
     def get_directory(self, param_table=None):
         if param_table is None:
             param_table=self.params
@@ -265,7 +269,8 @@ class BafPipe():
         # update hdf5
         self.eng.config.write_hdf5()
 
-    def on_unidec(self, hdf5_path = None, export_data=True, background_threshold = True, match = True):
+    def on_unidec(self, hdf5_path = None, export_data=True, background_threshold = True, match = True
+                  ):
 
 
         if hdf5_path is None:
@@ -275,30 +280,35 @@ class BafPipe():
             self.eng.open(hdf5_path)
             self.eng.process_data()
             self.eng.run_unidec()
-            self.eng.pick_peaks()
+            # self.eng.pick_peaks()
+            self.get_spectra_peaks()
+            
         except Exception as error:
             print(error)
 
         if self.species is not None and match:
             try:
-                masslist = np.array(self.species['Mass'])
-                names = np.array(self.species['Species'])
-                self.match_spectra(masslist, names, self.tolerance, background=background_threshold)
-                self.export_data()
+                self.match_spectra_arrays()
+                # masslist = np.array(self.species['Mass'])
+                # names = np.array(self.species['Species'])
+                # self.match_spectra(masslist, names, self.tolerance, background=background_threshold)
+                # self.export_data()
             except Exception as e:
                 print(e)
-        # masslist = list(self.species['Mass'])
-        # names = list(self.species['Species'])
-        # self.match_spectra(masslist, names, self.tolerance, background=background_threshold)
-        # self.export_data()
+        if export_data:
+            try:
+                self.export_results()
+                print("results exported to: {}".format(self.directory))
+            except Exception as e:
+                print("export failed: {}".format(e))
 
     def generate_peaks(self, spectrum, threshold = 0, tolerance = 10):
         """generates 2D x, y array of found peaks for a 2D x, y array"""
 
         x,y = spectrum[:,0], spectrum[:,1]
-        peaks, _ = find_peaks(y, height = threshold, distance = tolerance)
-        peaksx = [x[p] for p in peaks]
-        return np.array([np.array(peaksx), np.array(peaks)]).T
+        peaksi, _ = find_peaks(y, height = threshold, distance = tolerance)
+        peaksx = [x[p] for p in peaksi]
+        return np.array([np.array(peaksx), np.array(y[peaksi])]).T
     
     def get_spectra_peaks(self, spectra = None, threshold = True, tolerance = 10):
         """"""
@@ -307,20 +317,20 @@ class BafPipe():
         
         for s in spectra:
             
-            if threshold:
-                threshold = self.background_threshold(s)
             
             if threshold:
                 try:
-                    threshold = self.background_threshold(s)
+                    background_threshold = self.background_threshold(s)
                 except Exception as error:
-                    print(error) 
+                    print(error)
+                    background_threshold = 0 
             else:
-                threshold = 0
+                background_threshold = 0
 
             try:
-                peaks = self.generate_peaks(s.massdat, threshold, tolerance)
+                peaks = self.generate_peaks(s.massdat, background_threshold, tolerance)
                 s.peaks2 = peaks
+                print("{} got peaks".format(s.name))
             
             except Exception as error:
                 print("{} Peak picking error".format(s.name), error)
@@ -355,7 +365,7 @@ class BafPipe():
                 except Exception as error:
                     print("No threshold", error)
 
-    def match_array(self, peaks_array, masslist, names, window):
+    def match_array(self, peaks_array, masslist, names, window = 10,background = 0):
         """matches 2D peaks (y axis) to corresponding mass (x axis).
         Make sure masslist and names are np.array()"""
         
@@ -378,19 +388,76 @@ class BafPipe():
                 # Look up the matched mass and intensity from the original 2D array
                 matched_peak_mass = peaks_array[peak_index, 0]
                 matched_intensity = peaks_array[peak_index, 1]
-                quantified_matches[name] = (
-                    theoretical_mass,
-                    matched_peak_mass,
-                    min_diffs[i],
-                    matched_intensity # Added the intensity value
-                )
+
+                if matched_intensity > background:
+                    quantified_matches[name] = (
+                        theoretical_mass,
+                        matched_peak_mass,
+                        min_diffs[i],
+                        matched_intensity # Added the intensity value
+                    )
+                
         matched = {k: v for k, v in quantified_matches.items() if not np.isnan(v[2])}
 
         return matched
     
-    def match_spectra_arrays(self, spectra = None, masslist = None, names = None, window = None):
+    def match_spectra_arrays(self, spectra = None, masslist = None, names = None, window = 10,background = True, export = False):
 
-        pass
+        if spectra is None:
+            spectra = self.eng.data.spectra
+        if masslist is None: 
+            masslist = np.array(self.species['Mass'])
+        if names is None: 
+            names = np.array(self.species['Species'])
+        if background:
+            self.background_threshold_spectra()            
+
+        all_measurements = []
+        for s in spectra:
+            if background is False:
+                s.background_threshold = 0
+            try:
+                s.matched = self.match_array(s.peaks2,masslist, names, window, s.background_threshold)
+                df_temp = pd.DataFrame(s.matched).T.reset_index(names=['Species'])
+                df_temp.rename(columns={
+                                1: 'Found Mass',
+                                3: 'Peak Intensity'
+                            }, inplace=True)
+                df_temp.drop(columns=[0, 2], inplace=True)
+                df_temp['Name'] = s.name
+                df_temp['% Intensity'] = (df_temp["Peak Intensity"]/df_temp["Peak Intensity"].sum())*100
+                all_measurements.append(df_temp)
+
+            except Exception as e:
+                print("Peak match failed for {}:\n {}".format(s.name, e))        
+        df_measurements = pd.concat(all_measurements, ignore_index=True)
+        self.df_measurements = df_measurements
+        
+        if export:
+            self.export_results()
+
+
+    def export_results(self, name = None):
+        if name is None:
+            name = os.path.split(self.directory)[1]+"_results.xlsx"
+            
+        path = os.path.join(self.directory,name)
+
+        df_wide = self.df_measurements.pivot(
+            index='Name', 
+            columns='Species', 
+            values=['Found Mass', 'Peak Intensity', '% Intensity']
+        )
+
+        df_wide.columns = [f'{col[0]}_{col[1]}' for col in df_wide.columns]
+        self.df_wide = df_wide.reset_index()
+        self.df_wide.to_excel(path)
+
+        for s in self.eng.data.spectra:
+
+        # export massdat to unidec folder
+            arraypath = os.path.join(self.directory, "UniDec_Figures_and_Files", s.name+"_massdat.txt")
+            np.savetxt(arraypath, s.massdat)
 
     def match(self,pks, masslist, names, tolerance):
         """matches peaks (y axis) to corresponding mass (x axis) and updates peaks object
