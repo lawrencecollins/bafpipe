@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="bafpipe",
-    version="1.0.1",
+    version="1.0.2",
     author="Lawrence Collins",
     author_email="l.j.@leeds.ac.uk",
     description="Automated deconvolution and analysis of Bruker mass spectra datasets using UniDec",
