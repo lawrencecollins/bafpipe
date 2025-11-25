@@ -56,7 +56,7 @@ Make sure var_ids=True ```load_input_file(var_ids = True)```
 ### Running the code
 ```
 
-from bafpipe.meta_processing import pipe
+from bafpipe import pipe
 
 path = r"C:\users\input_file.xlsx
 
