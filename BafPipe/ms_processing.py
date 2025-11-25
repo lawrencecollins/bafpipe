@@ -1,4 +1,4 @@
-from deconvolawrence.baf2sql2unidec import *
+from bafpipe.baf2sql2unidec import *
 import matplotlib.pyplot as plt
 import os
 import unidec
@@ -6,41 +6,8 @@ from unidec.metaunidec.mudeng import MetaUniDec
 from unidec import tools as ud
 import pandas as pd
 import zipfile
-
-from deconvolawrence import ms_plotter_tools as msp
-
-# match expected masses
-def match(pks, masslist, names, tolerance):
-    matches = []
-    errors = []
-    peaks = []
-    nameslist = []
-
-
-    for p in pks:
-
-        target = p.mass
-    #     print(target)
-        nearpt = ud.nearestunsorted(masslist, target)
-
-        match = masslist[nearpt]
-        error = target-match
-        if np.abs(error) < tolerance:
-            name = names[nearpt]
-            p.error = error
-        else:
-            name = ""
-        p.label = name
-        p.match = match
-        p.matcherror = error
-
-        matches.append(match)
-        errors.append(error)
-        peaks.append(target)
-        nameslist.append(name)
-
-    matchlist = [peaks, matches, errors, nameslist]
-    return matchlist
+from scipy.signal import find_peaks
+from bafpipe import ms_plotter_tools as msp
 
 def unzip_from_dir(directory):
     """Unzips zip folders in dir and deletes zip"""
@@ -66,9 +33,7 @@ def df_partial_str_merge(df1, df2, on):
     df2=df2.merge(df1.drop('Name', axis=1), left_on='Name', right_on=merge_df, how='outer')
     return df2
 
-
-
-class Meta2():
+class BafPipe():
     def __init__(self):
         self.spectra = []
         self.eng = MetaUniDec()
@@ -114,9 +79,9 @@ class Meta2():
             config_table = filter_df(self.params, 'Config', 'Parameter')
             config_table.loc[:, 'Parameter'] = config_table.loc[:, 'Parameter'].str.replace("Config ", "")
         for i, row in config_table.iterrows():
-            print(row[0], row[1])
-            if row[1] is not np.nan:
-                setattr(self.eng.config, row[0], float(row[1]))
+            print(row.iloc[0], row.iloc[1])
+            if row.iloc[1] is not np.nan:
+                setattr(self.eng.config, row.iloc[0], float(row.iloc[1]))
                 # print(getattr(self.eng.config, row[0]))
 
 
@@ -151,9 +116,13 @@ class Meta2():
         try:
             self.species = self.species.merge(self.colors_df, on='Species', how='outer')
             self.species = self.species[['Species', 'Mass', 'Color']].dropna(subset=['Mass'])
+             
         except Exception as e:
             print(e)
+        if 'Color' not in df.columns:
+            self.species['Color'] = np.nan
 
+        df['Color'] = df['Color'].fillna('black')
     def get_directory(self, param_table=None):
         if param_table is None:
             param_table=self.params
@@ -300,7 +269,8 @@ class Meta2():
         # update hdf5
         self.eng.config.write_hdf5()
 
-    def on_unidec(self, hdf5_path = None, export_data=True, background_threshold = True, match = True):
+    def on_unidec(self, hdf5_path = None, export_data=True, background_threshold = True, match = True
+                  ):
 
 
         if hdf5_path is None:
@@ -310,22 +280,64 @@ class Meta2():
             self.eng.open(hdf5_path)
             self.eng.process_data()
             self.eng.run_unidec()
-            self.eng.pick_peaks()
+            # self.eng.pick_peaks()
+            self.get_spectra_peaks()
+            
         except Exception as error:
             print(error)
 
         if self.species is not None and match:
             try:
-                masslist = list(self.species['Mass'])
-                names = list(self.species['Species'])
-                self.match_spectra(masslist, names, self.tolerance, background=background_threshold)
-                self.export_data()
+                self.match_spectra_arrays()
+                # masslist = np.array(self.species['Mass'])
+                # names = np.array(self.species['Species'])
+                # self.match_spectra(masslist, names, self.tolerance, background=background_threshold)
+                # self.export_data()
             except Exception as e:
                 print(e)
-        # masslist = list(self.species['Mass'])
-        # names = list(self.species['Species'])
-        # self.match_spectra(masslist, names, self.tolerance, background=background_threshold)
-        # self.export_data()
+        if export_data:
+            try:
+                self.export_results()
+                print("results exported to: {}".format(self.directory))
+            except Exception as e:
+                print("export failed: {}".format(e))
+
+    def generate_peaks(self, spectrum, threshold = 0, tolerance = 10):
+        """generates 2D x, y array of found peaks for a 2D x, y array"""
+
+        x,y = spectrum[:,0], spectrum[:,1]
+        peaksi, _ = find_peaks(y, height = threshold, distance = tolerance)
+        peaksx = [x[p] for p in peaksi]
+        return np.array([np.array(peaksx), np.array(y[peaksi])]).T
+    
+    def get_spectra_peaks(self, spectra = None, threshold = True, tolerance = 10):
+        """"""
+        if spectra == None: 
+            spectra = self.eng.data.spectra
+        
+        for s in spectra:
+            
+            
+            if threshold:
+                try:
+                    background_threshold = self.background_threshold(s)
+                except Exception as error:
+                    print(error)
+                    background_threshold = 0 
+            else:
+                background_threshold = 0
+
+            try:
+                peaks = self.generate_peaks(s.massdat, background_threshold, tolerance)
+                s.peaks2 = peaks
+                print("{} got peaks".format(s.name))
+            
+            except Exception as error:
+                print("{} Peak picking error".format(s.name), error)
+
+            
+
+
 
 
     def background_threshold(self, spectrum, binsize = 10):
@@ -353,8 +365,102 @@ class Meta2():
                 except Exception as error:
                     print("No threshold", error)
 
-    def match(self,pks, masslist, names, tolerance, background_threshold = 0 ):
-        """matches peaks (y axis) to corresponding mass (x axis)
+    def match_array(self, peaks_array, masslist, names, window = 10,background = 0):
+        """matches 2D peaks (y axis) to corresponding mass (x axis).
+        Make sure masslist and names are np.array()"""
+        
+        data_masses = peaks_array[:, 0]
+        
+        
+        diff_matrix = np.abs(data_masses[:, np.newaxis] - masslist[np.newaxis, :])
+        diff_matrix[diff_matrix > window] = np.nan
+        min_peak_indices = np.nanargmin(diff_matrix, axis=0)
+        min_diffs = diff_matrix[min_peak_indices, np.arange(len(masslist))]
+
+        quantified_matches = {}
+
+        for i, name in enumerate(names):
+            # Check if the theoretical mass had a match within the window
+            if not np.isnan(min_diffs[i]):
+                theoretical_mass = masslist[i]
+                peak_index = min_peak_indices[i]
+                
+                # Look up the matched mass and intensity from the original 2D array
+                matched_peak_mass = peaks_array[peak_index, 0]
+                matched_intensity = peaks_array[peak_index, 1]
+
+                if matched_intensity > background:
+                    quantified_matches[name] = (
+                        theoretical_mass,
+                        matched_peak_mass,
+                        min_diffs[i],
+                        matched_intensity # Added the intensity value
+                    )
+                
+        matched = {k: v for k, v in quantified_matches.items() if not np.isnan(v[2])}
+
+        return matched
+    
+    def match_spectra_arrays(self, spectra = None, masslist = None, names = None, window = 10,background = True, export = False):
+
+        if spectra is None:
+            spectra = self.eng.data.spectra
+        if masslist is None: 
+            masslist = np.array(self.species['Mass'])
+        if names is None: 
+            names = np.array(self.species['Species'])
+        if background:
+            self.background_threshold_spectra()            
+
+        all_measurements = []
+        for s in spectra:
+            if background is False:
+                s.background_threshold = 0
+            try:
+                s.matched = self.match_array(s.peaks2,masslist, names, window, s.background_threshold)
+                df_temp = pd.DataFrame(s.matched).T.reset_index(names=['Species'])
+                df_temp.rename(columns={
+                                1: 'Found Mass',
+                                3: 'Peak Intensity'
+                            }, inplace=True)
+                df_temp.drop(columns=[0, 2], inplace=True)
+                df_temp['Name'] = s.name
+                df_temp['% Intensity'] = (df_temp["Peak Intensity"]/df_temp["Peak Intensity"].sum())*100
+                all_measurements.append(df_temp)
+
+            except Exception as e:
+                print("Peak match failed for {}:\n {}".format(s.name, e))        
+        df_measurements = pd.concat(all_measurements, ignore_index=True)
+        self.df_measurements = df_measurements
+        
+        if export:
+            self.export_results()
+
+
+    def export_results(self, name = None):
+        if name is None:
+            name = os.path.split(self.directory)[1]+"_results.xlsx"
+            
+        path = os.path.join(self.directory,name)
+
+        df_wide = self.df_measurements.pivot(
+            index='Name', 
+            columns='Species', 
+            values=['Found Mass', 'Peak Intensity', '% Intensity']
+        )
+
+        df_wide.columns = [f'{col[0]}_{col[1]}' for col in df_wide.columns]
+        self.df_wide = df_wide.reset_index()
+        self.df_wide.to_excel(path)
+
+        for s in self.eng.data.spectra:
+
+        # export massdat to unidec folder
+            arraypath = os.path.join(self.directory, "UniDec_Figures_and_Files", s.name+"_massdat.txt")
+            np.savetxt(arraypath, s.massdat)
+
+    def match(self,pks, masslist, names, tolerance):
+        """matches peaks (y axis) to corresponding mass (x axis) and updates peaks object
 
         Args:
             pks (_type_): _description_
@@ -370,9 +476,7 @@ class Meta2():
         peaks = []
         nameslist = []
 
-
         for p in pks:
-
             target = p.mass
         #     print(target)
             nearpt = ud.nearestunsorted(masslist, target)
@@ -409,8 +513,8 @@ class Meta2():
                 s.background_threshold = 0
 
         for s in self.eng.data.spectra:
-            self.match(s.pks.peaks, masslist, names, tolerance,
-                        background_threshold = s.background_threshold)
+            self.match(s.pks.peaks, masslist, names, tolerance)
+                        # background_threshold = s.background_threshold)
 
 
 
@@ -426,8 +530,6 @@ class Meta2():
         grouped = {}
         for n, d in df2.groupby(groupby):
             grouped[n] = [s for s in self.eng.data.spectra if s.name in list(d.Name_y)]
-
-
 
         return grouped
 
@@ -523,5 +625,11 @@ class Meta2():
 
 
 
+if __name__ == "__main__":
 
-
+    # run test 
+    input_file = r"c:\Users\chmlco\OneDrive - University of Leeds\RESEARCH\BafPipe test\Input file\BafPipe test.xlsx"
+    eng = BafPipe()
+    eng.load_input_file(input_file, unzip=False, clearhdf5=True, var_ids=True)
+    eng.on_unidec()
+    

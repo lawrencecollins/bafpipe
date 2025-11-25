@@ -8,7 +8,7 @@ import matplotlib
 import re
 import seaborn as sns
 
-matplotlib.rcParams['font.family'] = 'Arial'
+matplotlib.rcParams['font.family'] = 'Franklin Gothic Book'
 matplotlib.rcParams['pdf.fonttype'] = 42
 matplotlib.rcParams['ps.fonttype'] = 42
 
@@ -92,7 +92,7 @@ def _spectrum_plotter(x,y, title = None, axs = None, fig = None,
     axs.set_yticks([])
     axs.set_xlim(window[0], window[1])
     axs.grid(False)
-    axs.set_xlabel(xlabel, weight = "bold")
+    axs.set_xlabel(xlabel)
 
 
 
@@ -106,33 +106,57 @@ def export_figure(fig, name, directory, fmt='svg'):
 
     print("Fig exported to: ", figpath)
 
-def plot_peaks(peaks, axs = None, show_all = False, label = True, legend=True):
+# def plot_peaks(peaks, axs = None, show_all = False, label = True, legend=True):
+
+#     if axs is None:
+#         axs = plt.gca()
+
+
+#     for p in peaks:
+#         if show_all:
+#             axs.scatter(p.mass, p.height, color = p.color, marker=p.marker)
+#         elif show_all is False:
+#             if p.label != "":
+#                 axs.scatter(p.mass, p.height, color = p.color, marker=p.marker)
+#         if label:
+#             axs.text(p.mass, p.height, p.label, color = p.color, rotation = 0, ha = "center", va = 'bottom',
+#                     fontsize = 'small', style = 'italic')
+#     if legend:
+#         labels  = [str(p.label)+" "+str(p.mass)+" Da" for p in peaks if p.label!= "" ]
+#         nl = '\n'
+#         # text = f"Species: {nl}{nl.join(labels)}"
+#         text = f"{nl.join(labels)}"
+#         bbox = dict(boxstyle='round', fc='lavender', ec='teal', alpha=0.5)
+#         axs.text(1, 0.8, text, fontsize=9, bbox=bbox,
+#                 transform=axs.transAxes, horizontalalignment='left')
+
+def plot_peaks(peaks, species_dict, axs = None, label = True, legend=True):
 
     if axs is None:
         axs = plt.gca()
 
 
-    for p in peaks:
-        if show_all:
-            axs.scatter(p.mass, p.height, color = p.color, marker=p.marker)
-        elif show_all is False:
-            if p.label != "":
-                axs.scatter(p.mass, p.height, color = p.color, marker=p.marker)
+
+    for key, val in peaks.items():
+        df = species_dict[species_dict['Species'] == key]
+
+        
+        axs.scatter(val[1], val[3], color = df['Color'].iloc[0], )
+
         if label:
-            axs.text(p.mass, p.height, p.label, color = p.color, rotation = 0, ha = "center", va = 'bottom',
+            axs.text(val[1], val[3], key, color = df['Color'].iloc[0], rotation = 0, ha = "center", va = 'bottom',
                     fontsize = 'small', style = 'italic')
     if legend:
-        labels  = [str(p.label)+" "+str(p.mass)+" Da" for p in peaks if p.label!= "" ]
+        labels  = [str(key)+" "+str(val[1])+" Da" for key, val in peaks.items()]
         nl = '\n'
         # text = f"Species: {nl}{nl.join(labels)}"
         text = f"{nl.join(labels)}"
         bbox = dict(boxstyle='round', fc='lavender', ec='teal', alpha=0.5)
         axs.text(1, 0.8, text, fontsize=9, bbox=bbox,
                 transform=axs.transAxes, horizontalalignment='left')
+        
 
-
-
-def plot_spectra_separate(spectra, attr = 'massdat', xlabel = 'Mass [Da]',
+def plot_spectra_separate(spectra, species_dict,attr = 'massdat', xlabel = 'Mass [Da]',
                           export = True, window = [None, None], show_peaks = False, show_all_peaks = False,
                           label_peaks=True, legend = False, directory = "", show_titles = True,fmt='svg',
                           *args, **kwargs):
@@ -151,7 +175,9 @@ def plot_spectra_separate(spectra, attr = 'massdat', xlabel = 'Mass [Da]',
         _spectrum_plotter(x, y, xlabel=xlabel, axs = axs, fig=fig,title = s.name,
                           window = window, show_title=show_titles,*args, **kwargs)
         if show_peaks:
-            plot_peaks(s.pks.peaks, axs = axs, show_all = show_all_peaks, label = label_peaks, legend = legend)
+            # plot_peaks(s.pks.peaks, axs = axs, show_all = show_all_peaks, label = label_peaks, legend = legend)
+            plot_peaks(s.matched, species_dict,axs = axs, label = label_peaks, legend = legend)
+
         fig.tight_layout()
 
         window_name = ""
@@ -161,7 +187,9 @@ def plot_spectra_separate(spectra, attr = 'massdat', xlabel = 'Mass [Da]',
             window_name = window_name+"_"+str(window[1])
         if export:
             export_figure(fig, s.name+"_"+attr+window_name, directory, fmt=fmt)
-        plt.close(fig)
+            plt.close(fig)
+        else:
+            plt.show()
 
 def plot_spectra_combined2(spectra, attr = 'massdat', title = "", show_titles = True,
                           cmap='viridis', show_peaks = True,window = [None, None],

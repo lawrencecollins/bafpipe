@@ -1,0 +1,17 @@
+LICENSE
+MANIFEST.in
+README.md
+setup.py
+bafpipe/__init__.py
+bafpipe/baf2sql.py
+bafpipe/baf2sql2unidec.py
+bafpipe/baf2sql_c.dll
+bafpipe/ms_plotter.py
+bafpipe/ms_plotter_tools.py
+bafpipe/ms_processing.py
+bafpipe/pipe.py
+bafpipe.egg-info/PKG-INFO
+bafpipe.egg-info/SOURCES.txt
+bafpipe.egg-info/dependency_links.txt
+bafpipe.egg-info/requires.txt
+bafpipe.egg-info/top_level.txt
