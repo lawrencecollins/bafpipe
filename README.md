@@ -60,4 +60,4 @@ from bafpipe import pipe
 
 path = r"C:\users\input_file.xlsx
 
-bafpipe = pipe(path)
+bafpipe = on_bafpipe(path)

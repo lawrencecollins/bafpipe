@@ -3,7 +3,7 @@ from bafpipe import ms_plotter_tools as msp
 
 
 
-def pipe(path,unzip=False, clearhdf5=True, var_ids=True, plot = True):
+def on_bafpipe(path,unzip=False, clearhdf5=True, var_ids=True, plot = True):
     eng = BafPipe()
     eng.load_input_file(path, unzip=unzip, clearhdf5=clearhdf5, var_ids=var_ids)
     eng.on_unidec() 

@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="bafpipe",
-    version="1.0.6",
+    version="1.0.7",
     author="Lawrence Collins",
     author_email="l.j.collins@leeds.ac.uk",
     description="Automated deconvolution and analysis of Bruker mass spectra datasets using UniDec",
@@ -20,11 +20,11 @@ setuptools.setup(
     ],
     python_requires='>=3.6',
     setup_requires=['wheel'],
-    install_requires=['unidec', 'seaborn'],
+    install_requires=['unidec', 'seaborn','openpyxl'],
     package_data={'':['*.dll']},
     entry_points={
     'console_scripts': [
-        'bafpipe = pipe:main',  # The command is 'bafpipe'
+        'bafpipe = bafpipe.pipe:main',  # The command is 'bafpipe'
     ],}
 
 )
