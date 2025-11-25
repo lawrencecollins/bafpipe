@@ -120,7 +120,7 @@ class BafPipe():
         except Exception as e:
             print(e)
         if 'Color' not in df.columns:
-            df['Color'] = np.nan
+            self.species['Color'] = np.nan
 
         df['Color'] = df['Color'].fillna('black')
     def get_directory(self, param_table=None):
