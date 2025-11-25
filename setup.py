@@ -24,7 +24,7 @@ setuptools.setup(
     package_data={'':['*.dll']},
     entry_points={
     'console_scripts': [
-        '**bafpipe** = pipe:main',  # The command is 'bafpipe'
+        'bafpipe = pipe:main',  # The command is 'bafpipe'
     ],}
 
 )
