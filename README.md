@@ -56,33 +56,8 @@ Make sure var_ids=True ```load_input_file(var_ids = True)```
 ### Running the code
 ```
 
-from bafpipe.meta_processing import *
-from bafpipe import ms_plotter_tools as msp
+from bafpipe.meta_processing import pipe
 
 path = r"C:\users\input_file.xlsx
 
-eng = Meta2()
-
-eng.load_input_file(path, unzip=False, clearhdf5=True, var_ids=True) # load input file and run deconvolution
-
-eng.on_unidec()
-
-spectra = eng.eng.data.spectra
-
-msp.plot_spectra_separate(spectra,
-attr = "massdat",
-xlabel = "Mass [Da]", 
-export=True,
-c='black',
-lw=0.7,
-window=[None, None],
-show_peaks=True,
-legend=True,
-directory=eng.directory,
-fmt='png') # fmt = 'svg' for vector format
-
-```
-
-
-
-
+bafpipe = pipe(path)
