@@ -22,5 +22,9 @@ setuptools.setup(
     setup_requires=['wheel'],
     install_requires=['unidec', 'seaborn'],
     package_data={'':['*.dll']},
+    entry_points={
+    'console_scripts': [
+        '**bafpipe** = pipe:main',  # The command is 'bafpipe'
+    ],}
 
 )
