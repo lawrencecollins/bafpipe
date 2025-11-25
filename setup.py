@@ -6,7 +6,7 @@ with open("README.md", "r") as fh:
 setuptools.setup(
     name="BafPipe",
 
-    version="0.3.4",
+    version="0.3.3",
 
     author="Lawrence Collins",
     author_email="chmlco@leeds.ac.uk",
