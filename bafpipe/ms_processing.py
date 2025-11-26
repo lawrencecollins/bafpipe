@@ -41,6 +41,7 @@ class BafPipe():
         self.tolerance = 10
         self.vars=False
         self.colors_dict=None
+        self.xml_df = None
 
 
     def load_input_file(self, path, unzip = True, getscans=True, clearhdf5=True,
@@ -59,17 +60,21 @@ class BafPipe():
         if unzip:
             unzip_from_dir(self.directory)
 
-        if getscans:
-            scanstart, scanend = self.get_scans()
+    # try:
+        scanstart, scanend = self.get_scans()
+    
         self.upload_spectra(scanstart=scanstart, scanend=scanend)
         self.load_hdf5(clear=clearhdf5)
         self.to_unidec()
         self.update_config()
         self.get_species()
-        try:
-            self.get_colors()
-        except Exception as e:
-            print(e)
+    # except Exception as e:
+        # print(e)
+        
+    # try:
+        self.get_colors()
+    # except Exception as e:
+        # print(e)
 
 
     def update_config(self, config_table = None):
@@ -107,22 +112,28 @@ class BafPipe():
         return self.species
 
     def get_colors(self):
-        param_table = self.params
-        seqs = filter_df(param_table, 'Color', 'Parameter')
-        seqs.loc[:, 'Parameter']=seqs.loc[:, 'Parameter'].str.replace("Color ", "")
-        self.colors_df=seqs.rename(columns={"Parameter":"Species", "Input":"Color"})
-        self.colors_df.drop('Comments',axis=1,inplace=True)
-        self.colors_dict = pd.Series(self.colors_df.Color.values,index=self.colors_df.Species.values, ).to_dict()
+
+        if 'Color' not in self.species.columns:
+            # self.species['Color'] = np.nan
+
+            # self.species['Color'] = self.species['Color'].fillna('black')
+            param_table = self.params
+            seqs = filter_df(param_table, 'Color', 'Parameter')
+            seqs.loc[:, 'Parameter']=seqs.loc[:, 'Parameter'].str.replace("Color ", "")
+            self.colors_df=seqs.rename(columns={"Parameter":"Species", "Input":"Color"})
+            self.colors_df.drop('Comments',axis=1,inplace=True)
+            self.colors_dict = pd.Series(self.colors_df.Color.values,index=self.colors_df.Species.values, ).to_dict()
         try:
             self.species = self.species.merge(self.colors_df, on='Species', how='outer')
             self.species = self.species[['Species', 'Mass', 'Color']].dropna(subset=['Mass'])
              
         except Exception as e:
             print(e)
-        if 'Color' not in df.columns:
-            self.species['Color'] = np.nan
+        # if 'Color' not in self.species.columns:
+        #     self.species['Color'] = np.nan
 
-        df['Color'] = df['Color'].fillna('black')
+        # self.species['Color'] = self.species['Color'].fillna('black')
+
     def get_directory(self, param_table=None):
         if param_table is None:
             param_table=self.params
@@ -132,7 +143,8 @@ class BafPipe():
         return self.directory
 
     def upload_spectra(self, directory = None, scanstart = None, scanend = None, filetype= '.baf',
-                       plot = False, show_scans=False):
+                       plot = False, show_scans=False,attrs = True,parameter_names = ['CreationDateTime', 'SampleID'],
+                  UserColumnNames = True):
         """_summary_
 
         Args:
@@ -154,6 +166,8 @@ class BafPipe():
                 path = os.path.join(directory, s)
                 spectrum = BafSpectrum()
                 spectrum.export_scans_from_file(path, scanstart, scanend)
+                if attrs:
+                    spectrum.extract_xml_parameters(parameter_names=parameter_names,UserColumnNames=UserColumnNames)
                 self.spectra.append(spectrum)
 
                 if plot is True:
@@ -188,16 +202,24 @@ class BafPipe():
         self.hdf5_path = hdf5_path
 
 
-    def to_unidec(self, spectra = None):
+    def to_unidec(self, spectra = None, add_attrs = True, ):
         """_summary_
 
         Args:
             spectra (_type_, optional): _description_. Defaults to None.
         """
+        attrs = None
         if spectra is None:
             spectra = self.spectra
         for s in spectra:
-            self.eng.data.add_data(s.data2, name = s.name, export=False)
+            if add_attrs:
+                if s.xml_parameters_dict is not None:
+                    attrs = s.xml_parameters_dict
+            try:   
+                self.eng.data.add_data(s.data2, name = s.name, export=False)
+            except Exception as e:
+                print("{} to_unidec failed: {}".format(s.name, e))
+
         self.eng.data.export_hdf5()
 
     def default_config(self, massub = 20000, masslb = 10000, minmz = 600,
@@ -335,10 +357,6 @@ class BafPipe():
             except Exception as error:
                 print("{} Peak picking error".format(s.name), error)
 
-            
-
-
-
 
     def background_threshold(self, spectrum, binsize = 10):
 
@@ -436,6 +454,19 @@ class BafPipe():
         if export:
             self.export_results()
 
+    def get_xml_dataframe(self, spectra = None):
+        if spectra is None:
+            spectra = self.spectra
+        xml_list = []
+        for s in spectra:
+            try:
+                xml_list.append(pd.DataFrame(s.xml_parameters_dict).T)
+            except Exception as e:
+                print("{} failed to get xml, {}".format(s.name, e))
+
+        self.xml_df = pd.concat(xml_list)
+        
+
 
     def export_results(self, name = None):
         if name is None:
@@ -451,6 +482,20 @@ class BafPipe():
 
         df_wide.columns = [f'{col[0]}_{col[1]}' for col in df_wide.columns]
         self.df_wide = df_wide.reset_index()
+
+        try:
+            self.get_xml_dataframe()
+            self.df_wide = pd.merge(self.xml_df, self.df_wide.set_index("Name"), left_index=True, right_index=True)
+        except Exception as e:
+            print("failed to generate xml data {}".format(e))
+
+        if self.vars:
+            try: 
+                self.df_wide['Name'] = self.df_wide.index
+                self.df_wide = df_partial_str_merge(self.df_wide,self.var_ids,'Name').set_index("Name")
+            except Exception as e:
+                print("Could not conc vars, {}".format(e))
+
         self.df_wide.to_excel(path)
 
         for s in self.eng.data.spectra:
@@ -619,8 +664,8 @@ class BafPipe():
                                       cmap=cmap,title=title,show_titles=show_titles,
                                       show_peaks=show_peaks, window=window)
         else:
-            msp.plot_spectra_separate(spectra, directory=self.directory, export=export, attr=data, window=window, xlabel=xlabel,
-                                      c=c, lw=lw
+            msp.plot_spectra_separate(spectra, species_dict=self.species, directory=self.directory, export=export, attr=data, window=window, xlabel=xlabel,
+                                      c=c, lw=lw,
                                        )
 
 
