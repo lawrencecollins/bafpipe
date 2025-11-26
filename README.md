@@ -56,8 +56,22 @@ Make sure var_ids=True ```load_input_file(var_ids = True)```
 ### Running the code
 ```
 
-from bafpipe import pipe
+from bafpipe.pipe import *
 
 path = r"C:\users\input_file.xlsx
 
 bafpipe = on_bafpipe(path)
+ ```
+Quantified results will be exported to Excel results table containing MS metadata from .xml (including aquisition time, e.g. for kinetics/real time MS)
+
+
+#### Other functions:
+
+
+##### loading input file with var IDs:
+from bafpipe.ms_processing import *
+eng = BafPipe()
+eng.load_input_file(path, unzip=False, clearhdf5=True, var_ids=True)
+eng.on_unidec()
+```
+This will export quantified results to the Excel results table with additional sample metadata.
